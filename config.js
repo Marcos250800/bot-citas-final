@@ -1,4 +1,4 @@
-mmodule.exports = {
+module.exports = {
     // URL DEL MINISTERIO (Entrada humana para evitar bloqueo)
     base44ApiUrl: 'https://www.exteriores.gob.es/Consulados/lahabana/es/ServiciosConsulares/Paginas/index.aspx?scco=Cuba&scd=166&scca=Legalizaci%c3%b3n+o+Apostilla.+Compulsa+y+Registro&scs=Legalizaci%c3%b3n+y+apostilla+de+la+Haya',
     
