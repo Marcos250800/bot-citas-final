@@ -1,7 +1,4 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-puppeteer.use(StealthPlugin());
-
+const puppeteer = require('puppeteer');
 const nodemailer = require('nodemailer');
 const config = require('./config');
 
@@ -27,7 +24,6 @@ async function checkCitas() {
     let browser = null;
 
     try {
-        // MODO SIN PANTALLA (Headless) para el servidor
         browser = await puppeteer.launch({
             headless: "new",
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1920,1080']
@@ -36,9 +32,13 @@ async function checkCitas() {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         
-        // 1. IR AL MINISTERIO
+        // 1. IR AL MINISTERIO (Le damos mucho tiempo: 2 minutos)
         console.log("🌍 Entrando al Ministerio...");
-        await page.goto(config.base44ApiUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        try {
+            await page.goto(config.base44ApiUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
+        } catch (e) {
+            console.log("⚠️ La web tarda mucho, pero seguimos intentando...");
+        }
 
         // 2. TRUCO MISMA PESTAÑA
         console.log("🔎 Buscando enlace...");
@@ -46,14 +46,16 @@ async function checkCitas() {
         await page.waitForSelector(selectorEnlace, { timeout: 20000 });
         await page.$eval(selectorEnlace, el => el.setAttribute('target', '_self'));
 
-        // 3. CLIC
-        console.log("👉 Clic...");
-        await Promise.all([
-            page.click(selectorEnlace),
-            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 })
-        ]);
+        // 3. CLIC Y ESPERA FIJA (Aquí estaba el fallo antes)
+        console.log("👉 Clic en el enlace...");
+        
+        // NO esperamos a la navegación perfecta, solo hacemos clic y esperamos tiempo real
+        await page.click(selectorEnlace);
+        
+        console.log("⏳ Esperando 20 segundos a que cargue la web lenta...");
+        await new Promise(r => setTimeout(r, 20000));
 
-        // 4. MACHACAR ALERTA CON ENTER (Tu truco)
+        // 4. MACHACAR ALERTA CON ENTER
         console.log("⚔️ Machacando alerta...");
         page.on('dialog', async dialog => { try { await dialog.accept(); } catch(e){} });
         
@@ -66,8 +68,10 @@ async function checkCitas() {
         let contenido = await page.content();
         if (contenido.length < 500) {
             console.log("⚠️ Blanco. F5...");
-            await page.reload({ waitUntil: 'domcontentloaded' });
-            await new Promise(r => setTimeout(r, 3000));
+            try {
+                await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+            } catch(e) {}
+            await new Promise(r => setTimeout(r, 5000));
             await page.keyboard.press('Enter');
         }
 
@@ -76,18 +80,16 @@ async function checkCitas() {
             const boton = await page.waitForSelector('input[value*="Continuar"], input[value*="Continue"], button', { timeout: 10000 });
             if (boton) {
                 console.log("👉 Botón Continuar...");
-                await Promise.all([
-                    boton.click(),
-                    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>null)
-                ]);
+                await boton.click();
+                // Esperamos otros 15 segundos fijos
+                await new Promise(r => setTimeout(r, 15000));
             }
-        } catch (e) { console.log("ℹ️ No vi botón (seguimos)."); }
+        } catch (e) { console.log("ℹ️ No vi botón (quizás ya pasó)."); }
 
-        // 7. ANÁLISIS FINAL (TUS PALABRAS CLAVE)
-        await new Promise(r => setTimeout(r, 2000));
+        // 7. ANÁLISIS FINAL
         contenido = (await page.content()).toLowerCase();
         
-        const exito = ["hueco", "libre", "reservar", "seleccionar"]; // <--- ESTO ES LO QUE BUSCA
+        const exito = ["hueco", "libre", "reservar", "seleccionar"]; 
         const fracaso = ["no hay horas disponibles", "inténtelo de nuevo", "no availability"];
 
         if (exito.some(p => contenido.includes(p))) {
@@ -98,15 +100,15 @@ async function checkCitas() {
             console.log("❌ Sin novedad. (Mensaje 'No hay horas').");
         
         } else {
-            console.log("❓ Pantalla desconocida o Error.");
+            console.log("❓ Pantalla desconocida o Error de carga.");
         }
 
     } catch (error) {
-        console.error("⚠️ Error:", error.message);
-        process.exit(1); // Salir con error
+        console.error("⚠️ Error fatal:", error.message);
+        process.exit(1);
     } finally {
         if (browser) await browser.close();
-        process.exit(0); // Apagar la máquina
+        process.exit(0);
     }
 }
 
