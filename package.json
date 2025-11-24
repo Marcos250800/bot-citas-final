@@ -1,13 +1,15 @@
 {
-  "name": "bot-citas-final",
-  "version": "1.0.0",
-  "description": "Bot Francotirador GitHub Actions",
+  "name": "bot-citas-github",
+  "version": "3.0.0",
+  "description": "Bot Rotativo IPs",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "puppeteer": "^21.5.0",
+    "puppeteer": "^21.6.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "nodemailer": "^6.9.7"
   }
 }
