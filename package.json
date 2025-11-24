@@ -1,7 +1,7 @@
 {
-  "name": "bot-citas-github",
+  "name": "bot-citas-final",
   "version": "3.0.0",
-  "description": "Bot Rotativo IPs",
+  "description": "Bot Francotirador GitHub",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
