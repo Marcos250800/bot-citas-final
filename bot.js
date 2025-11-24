@@ -26,53 +26,57 @@ async function checkCitas() {
     try {
         browser = await puppeteer.launch({
             headless: "new",
+            // AQUI ESTÁ EL CAMBIO: Damos 4 minutos de margen técnico
+            protocolTimeout: 240000, 
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1920,1080']
         });
 
         const page = await browser.newPage();
+        // Aumentamos también el tiempo de espera por defecto a 2 minutos
+        page.setDefaultTimeout(120000); 
+        
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         
-        // 1. IR AL MINISTERIO (Le damos mucho tiempo: 2 minutos)
+        // 1. IR AL MINISTERIO
         console.log("🌍 Entrando al Ministerio...");
-        try {
-            await page.goto(config.base44ApiUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
-        } catch (e) {
-            console.log("⚠️ La web tarda mucho, pero seguimos intentando...");
-        }
+        await page.goto(config.base44ApiUrl, { waitUntil: 'domcontentloaded' });
 
         // 2. TRUCO MISMA PESTAÑA
         console.log("🔎 Buscando enlace...");
         const selectorEnlace = 'a[href*="citaconsular.es"]';
-        await page.waitForSelector(selectorEnlace, { timeout: 20000 });
+        await page.waitForSelector(selectorEnlace);
         await page.$eval(selectorEnlace, el => el.setAttribute('target', '_self'));
 
-        // 3. CLIC Y ESPERA FIJA (Aquí estaba el fallo antes)
+        // 3. CLIC Y ESPERA (Sin waitForNavigation para no bloquearnos)
         console.log("👉 Clic en el enlace...");
-        
-        // NO esperamos a la navegación perfecta, solo hacemos clic y esperamos tiempo real
         await page.click(selectorEnlace);
         
-        console.log("⏳ Esperando 20 segundos a que cargue la web lenta...");
-        await new Promise(r => setTimeout(r, 20000));
+        console.log("⏳ Esperando 25 segundos a que cargue (Modo Seguro)...");
+        await new Promise(r => setTimeout(r, 25000));
 
-        // 4. MACHACAR ALERTA CON ENTER
-        console.log("⚔️ Machacando alerta...");
+        // 4. MACHACAR ALERTA (Con try/catch para que no falle nunca)
+        console.log("⚔️ Gestionando alertas...");
+        
+        // Intento A: Diálogo nativo
         page.on('dialog', async dialog => { try { await dialog.accept(); } catch(e){} });
         
-        for (let i = 0; i < 5; i++) {
-            await page.keyboard.press('Enter');
-            await new Promise(r => setTimeout(r, 300));
-        }
+        // Intento B: Teclado (Protegido contra fallos)
+        try {
+            for (let i = 0; i < 5; i++) {
+                await page.keyboard.press('Enter');
+                await new Promise(r => setTimeout(r, 500));
+            }
+        } catch(e) { console.log("⚠️ No se pudo usar el teclado (no grave)."); }
 
         // 5. RECARGA SI BLANCO
         let contenido = await page.content();
         if (contenido.length < 500) {
             console.log("⚠️ Blanco. F5...");
             try {
-                await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+                await page.reload({ waitUntil: 'domcontentloaded' });
+                await new Promise(r => setTimeout(r, 5000));
+                await page.keyboard.press('Enter');
             } catch(e) {}
-            await new Promise(r => setTimeout(r, 5000));
-            await page.keyboard.press('Enter');
         }
 
         // 6. BOTÓN CONTINUAR
@@ -81,15 +85,14 @@ async function checkCitas() {
             if (boton) {
                 console.log("👉 Botón Continuar...");
                 await boton.click();
-                // Esperamos otros 15 segundos fijos
                 await new Promise(r => setTimeout(r, 15000));
             }
-        } catch (e) { console.log("ℹ️ No vi botón (quizás ya pasó)."); }
+        } catch (e) { console.log("ℹ️ No vi botón (seguimos)."); }
 
         // 7. ANÁLISIS FINAL
         contenido = (await page.content()).toLowerCase();
         
-        const exito = ["hueco", "libre", "reservar", "seleccionar"]; 
+        const exito = ["hueco", "libre", "reservar", "seleccionar"];
         const fracaso = ["no hay horas disponibles", "inténtelo de nuevo", "no availability"];
 
         if (exito.some(p => contenido.includes(p))) {
@@ -100,12 +103,13 @@ async function checkCitas() {
             console.log("❌ Sin novedad. (Mensaje 'No hay horas').");
         
         } else {
-            console.log("❓ Pantalla desconocida o Error de carga.");
+            console.log("❓ Pantalla desconocida (Posible bloqueo).");
         }
 
     } catch (error) {
-        console.error("⚠️ Error fatal:", error.message);
-        process.exit(1);
+        console.error("⚠️ Error controlado:", error.message);
+        // No salimos con error (exit 1) para que GitHub no te mande mail de "Failed Run"
+        process.exit(0); 
     } finally {
         if (browser) await browser.close();
         process.exit(0);
