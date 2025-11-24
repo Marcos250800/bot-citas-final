@@ -23,13 +23,12 @@ async function enviarCorreo(texto) {
 }
 
 async function checkCitas() {
-    console.log("🤖 GitHub V11 (Ligero): " + new Date().toLocaleTimeString());
+    console.log("🤖 GitHub V12 (Con Chivato): " + new Date().toLocaleTimeString());
     let browser = null;
 
     try {
         browser = await puppeteer.launch({
             headless: "new",
-            // Quitamos el timeout técnico agresivo
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1920,1080']
         });
 
@@ -37,7 +36,7 @@ async function checkCitas() {
         page.setDefaultTimeout(120000);
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         
-        // 1. GESTIÓN DE ALERTAS NATIVA (Sin teclado, consume menos CPU)
+        // 1. GESTIÓN DE ALERTAS
         page.on('dialog', async dialog => {
             console.log(`🔔 Alerta detectada. Aceptando...`);
             await dialog.accept();
@@ -52,18 +51,18 @@ async function checkCitas() {
         await page.waitForSelector(selectorEnlace, { timeout: 30000 });
         await page.$eval(selectorEnlace, el => el.setAttribute('target', '_self'));
 
-        // 4. CLIC Y ESPERA LARGA (Sin acciones intermedias)
+        // 4. CLIC Y ESPERA LARGA
         console.log("👉 Clic...");
         await Promise.all([
             page.click(selectorEnlace),
             page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 })
         ]);
 
-        // 5. ESPERA PASIVA (Dejamos que la CPU respire)
-        console.log("⏳ Esperando carga (10s)...");
-        await new Promise(r => setTimeout(r, 10000));
+        // 5. ESPERA PASIVA
+        console.log("⏳ Esperando carga (15s)...");
+        await new Promise(r => setTimeout(r, 15000));
 
-        // 6. INTENTAR F5 SI ES BLANCO (Solo una vez)
+        // 6. INTENTAR F5 SI ES BLANCO
         let contenido = await page.content();
         if (contenido.length < 500) {
             console.log("⚠️ Blanco. F5...");
@@ -80,7 +79,12 @@ async function checkCitas() {
         } else if (contenido.includes("no hay horas") || contenido.includes("inténtelo de nuevo")) {
             console.log("❌ Sin novedad. (Mensaje 'No hay horas')");
         } else {
-            console.log("❓ Pantalla desconocida.");
+            // --- AQUÍ ESTÁ EL CHIVATO ---
+            console.log("❓ Pantalla desconocida. ESTO ES LO QUE VEO:");
+            console.log("---------------------------------------------------");
+            // Imprimimos solo los primeros 300 caracteres para no llenar la pantalla
+            console.log(contenido.substring(0, 300)); 
+            console.log("---------------------------------------------------");
         }
 
     } catch (error) {
